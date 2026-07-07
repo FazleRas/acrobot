@@ -51,6 +51,22 @@ class RunTelemetry:
 
     def write_step_summary(self) -> None:
         path = os.environ.get("GITHUB_STEP_SUMMARY")
-        if not path:
+        if not path or not self.stages:
             return
-        raise NotImplementedError("markdown table writer lands in weekend 2")
+        lines = [
+            "## reviewbot run",
+            "",
+            "| stage | requests | in tok | out tok | think tok | s | actual | hypothetical |",
+            "|---|---|---|---|---|---|---|---|",
+        ]
+        for name, stats in self.stages.items():
+            model = name.split("(")[-1].rstrip(")")
+            cost = hypothetical_cost(model, stats.usage)
+            cost_cell = f"${cost:.4f}" if cost is not None else "—"
+            usage = stats.usage
+            lines.append(
+                f"| {name} | {stats.requests} | {usage.input_tokens} | {usage.output_tokens} "
+                f"| {usage.thinking_tokens} | {stats.seconds:.1f} | $0.00 | {cost_cell} |"
+            )
+        with open(path, "a") as handle:
+            handle.write("\n".join(lines) + "\n")
