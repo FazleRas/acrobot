@@ -21,8 +21,8 @@ Early scaffold — pipeline wiring in progress.
 - [x] Provider protocol + Gemini adapter (structured outputs, reasoning flag)
 - [x] Rate limiter (RPM sliding window + RPD daily budget)
 - [x] Comment fingerprinting for idempotent re-runs
-- [ ] Review pass + comment posting (weekend 1)
-- [ ] Chunker, postprocessing, idempotent posting end-to-end (weekend 2)
+- [x] Review pass + comment posting (anchor validation, idempotent re-runs, partial-review degradation)
+- [ ] Chunker, postprocessing, end-to-end hardening (weekend 2)
 - [ ] Eval harness: labeled cases, cassettes, CI regression (weekend 3)
 - [ ] Triage tier + rate-limiter hardening + provider benchmark (weekend 4)
 - [ ] v2: repository context layer (RAG over the codebase)
@@ -46,6 +46,7 @@ jobs:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4   # needed so the action can read .github/reviewbot.yml
       - uses: FazleRas/ai-review-bot@v1
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
