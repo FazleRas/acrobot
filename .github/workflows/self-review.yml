@@ -1,0 +1,30 @@
+name: Self Review (dogfood)
+
+# The bot reviews its own PRs. Manual-only until the pipeline is wired
+# (weekend 2) — then switch `on:` to:
+#
+#   pull_request:
+#     types: [opened, synchronize, reopened, ready_for_review]
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: reviewbot-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    # v1 fork policy: same-repo PRs only. Fork PRs can't read secrets, and
+    # pull_request_target + untrusted checkout is an RCE footgun — documented
+    # in docs/architecture.md instead of risked here.
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./
+        with:
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
