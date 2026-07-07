@@ -16,6 +16,7 @@ from reviewbot.github.client import GitHubClient
 from reviewbot.github.pr import fetch_changed_files, fetch_existing_comment_bodies
 from reviewbot.github.reviews import build_comments, post_review
 from reviewbot.llm.gemini_provider import GeminiProvider
+from reviewbot.llm.provider import ProviderAuthError
 from reviewbot.pipeline.fingerprint import extract_fingerprints
 from reviewbot.pipeline.review import review
 from reviewbot.ratelimit import RateLimiter
@@ -58,7 +59,11 @@ def main() -> int:
     if not chunks:
         return 0
 
-    outcome = review(provider, limiter, config.models.review, chunks, telemetry)
+    try:
+        outcome = review(provider, limiter, config.models.review, chunks, telemetry)
+    except ProviderAuthError as exc:
+        print(f"reviewbot: {exc}")
+        return 1
     existing = extract_fingerprints(fetch_existing_comment_bodies(gh, number))
     comments = build_comments(outcome.findings, existing)
 

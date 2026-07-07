@@ -27,7 +27,15 @@ class ProviderResponse[T: BaseModel]:
 
 
 class ProviderError(RuntimeError):
-    """The provider returned something unusable (bad JSON, empty candidate)."""
+    """Per-request failure (bad JSON, transient API error) — skip the chunk."""
+
+
+class ProviderAuthError(RuntimeError):
+    """Credentials are bad — every chunk will fail, so abort the whole run.
+
+    Deliberately NOT a ProviderError subclass: the pipeline's per-chunk
+    error handling must never swallow an auth failure into a green check.
+    """
 
 
 class Provider(Protocol):
