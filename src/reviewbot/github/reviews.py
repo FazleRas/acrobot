@@ -2,14 +2,14 @@
 
 from typing import Any
 
-from reviewbot.diff.parser import Chunk
+from reviewbot.diff.chunker import ReviewUnit
 from reviewbot.github.client import GitHubClient
 from reviewbot.pipeline.fingerprint import fingerprint, marker
 from reviewbot.schemas import Finding
 
 
 def build_comments(
-    findings: list[tuple[Finding, Chunk]],
+    findings: list[tuple[Finding, ReviewUnit]],
     existing_fingerprints: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Turn findings into GitHub review-comment payloads.
@@ -22,20 +22,20 @@ def build_comments(
     existing = existing_fingerprints or set()
     comments: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for finding, chunk in findings:
+    for finding, unit in findings:
         start = finding.line
         end = finding.end_line if finding.end_line and finding.end_line > finding.line else None
         anchor_lines = range(start, (end or start) + 1)
-        if any(n not in chunk.new_lines for n in anchor_lines):
+        if any(n not in unit.new_lines for n in anchor_lines):
             continue
 
-        fp = fingerprint(chunk.path, chunk.lines_for(start, end), finding.category)
+        fp = fingerprint(unit.path, unit.lines_for(start, end), finding.category)
         if fp in existing or fp in seen:
             continue
         seen.add(fp)
 
         comment: dict[str, Any] = {
-            "path": chunk.path,
+            "path": unit.path,
             "line": end or start,
             "side": "RIGHT",
             "body": (

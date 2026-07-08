@@ -1,7 +1,7 @@
 """Action entry point: read the pull_request event, run the pipeline, post one review.
 
-Weekend-1 happy path: fetch → filter → parse → review → post. No chunk merging
-or triage tier yet — every surviving hunk goes straight to the review model.
+fetch → filter → parse → chunk into per-file units → review → postprocess →
+post. No triage tier yet (weekend 4) — every unit goes to the review model.
 """
 
 import json
@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 from reviewbot.config import BotConfig
+from reviewbot.diff.chunker import build_units
 from reviewbot.diff.filters import should_review
 from reviewbot.diff.parser import Chunk, parse_patch
 from reviewbot.github.client import GitHubClient
@@ -18,6 +19,7 @@ from reviewbot.github.reviews import build_comments, post_review
 from reviewbot.llm.gemini_provider import GeminiProvider
 from reviewbot.llm.provider import ProviderAuthError
 from reviewbot.pipeline.fingerprint import extract_fingerprints
+from reviewbot.pipeline.postprocess import postprocess
 from reviewbot.pipeline.review import review
 from reviewbot.ratelimit import RateLimiter
 from reviewbot.telemetry import RunTelemetry
@@ -55,25 +57,35 @@ def main() -> int:
             chunks.extend(parse_patch(item["filename"], item["patch"]))
         else:
             filtered += 1
-    print(f"reviewbot: {len(changed)} files -> {len(chunks)} hunks ({filtered} files filtered)")
-    if not chunks:
+    units = build_units(chunks, config.max_tokens_per_request)
+    print(
+        f"reviewbot: {len(changed)} files -> {len(chunks)} hunks -> {len(units)} units "
+        f"({filtered} files filtered)"
+    )
+    if not units:
         return 0
 
     try:
-        outcome = review(provider, limiter, config.models.review, chunks, telemetry)
+        outcome = review(provider, limiter, config.models.review, units, telemetry)
     except ProviderAuthError as exc:
         print(f"reviewbot: {exc}", file=sys.stderr)
         return 1
+    kept = postprocess(outcome.findings, config)
+    suppressed = len(outcome.findings) - len(kept)
     existing = extract_fingerprints(fetch_existing_comment_bodies(gh, number))
-    comments = build_comments(outcome.findings, existing)
+    comments = build_comments(kept, existing)
 
     summary = [
-        f"🤖 AI review: {len(comments)} finding(s) across {outcome.chunks_reviewed} hunk(s)."
+        f"🤖 AI review: {len(comments)} finding(s) across {outcome.units_reviewed} unit(s)."
     ]
+    if suppressed:
+        summary.append(
+            f"{suppressed} finding(s) below the configured confidence/severity bar were suppressed."
+        )
     if outcome.budget_exhausted:
         summary.append("⚠️ Daily free-tier budget ran out mid-review — this is a partial review.")
-    if outcome.chunks_errored:
-        summary.append(f"{outcome.chunks_errored} hunk(s) skipped due to provider errors.")
+    if outcome.units_errored:
+        summary.append(f"{outcome.units_errored} unit(s) skipped due to provider errors.")
     post_review(gh, number, pr["head"]["sha"], "\n\n".join(summary), comments)
 
     telemetry.write_step_summary()

@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel
 
+from reviewbot.diff.chunker import build_units
 from reviewbot.diff.parser import parse_patch
 from reviewbot.github.reviews import build_comments
 from reviewbot.llm.provider import ProviderResponse, Usage
@@ -74,33 +75,33 @@ class TestReviewPass:
 
         from reviewbot.llm.provider import ProviderAuthError
 
-        chunks = parse_patch("a.py", PATCH)
+        units = build_units(parse_patch("a.py", PATCH))
         with pytest.raises(ProviderAuthError):
-            review(AuthFailProvider(), _limiter(), "fake-model", chunks)
+            review(AuthFailProvider(), _limiter(), "fake-model", units)
 
     def test_pairs_findings_with_chunks_and_owns_path(self):
-        chunks = parse_patch("strategies/momentum.py", PATCH)
-        outcome = review(FakeProvider(), _limiter(), "fake-model", chunks)
-        assert outcome.chunks_reviewed == 1
-        finding, chunk = outcome.findings[0]
+        units = build_units(parse_patch("strategies/momentum.py", PATCH))
+        outcome = review(FakeProvider(), _limiter(), "fake-model", units)
+        assert outcome.units_reviewed == 1
+        finding, unit = outcome.findings[0]
         # The model's self-reported path is overridden by the pipeline.
         assert finding.path == "strategies/momentum.py"
-        assert chunk.path == "strategies/momentum.py"
+        assert unit.path == "strategies/momentum.py"
 
     def test_budget_exhaustion_stops_cleanly_mid_run(self):
-        chunks = parse_patch("a.py", PATCH) + parse_patch("b.py", PATCH)
+        units = build_units(parse_patch("a.py", PATCH) + parse_patch("b.py", PATCH))
         provider = FakeProvider()
-        outcome = review(provider, _limiter(rpd=1), "fake-model", chunks)
+        outcome = review(provider, _limiter(rpd=1), "fake-model", units)
         assert provider.calls == 1
-        assert outcome.chunks_reviewed == 1
+        assert outcome.units_reviewed == 1
         assert outcome.budget_exhausted is True
         assert len(outcome.findings) == 1  # partial results survive
 
 
 class TestBuildComments:
     def _paired(self, finding: Finding):
-        chunk = parse_patch("strategies/momentum.py", PATCH)[0]
-        return [(finding, chunk)]
+        unit = build_units(parse_patch("strategies/momentum.py", PATCH))[0]
+        return [(finding, unit)]
 
     def test_valid_anchor_becomes_comment_with_marker(self):
         comments = build_comments(self._paired(_finding(line=2)))
@@ -126,6 +127,6 @@ class TestBuildComments:
         assert rerun == []
 
     def test_duplicate_findings_in_same_run_deduped(self):
-        chunk = parse_patch("strategies/momentum.py", PATCH)[0]
-        pairs = [(_finding(line=2), chunk), (_finding(line=2), chunk)]
+        unit = build_units(parse_patch("strategies/momentum.py", PATCH))[0]
+        pairs = [(_finding(line=2), unit), (_finding(line=2), unit)]
         assert len(build_comments(pairs)) == 1

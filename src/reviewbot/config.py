@@ -34,6 +34,7 @@ class BotConfig(BaseModel):
     max_comments: int = 10
     severity_floor: Severity = "warning"
     max_patch_bytes: int = 100_000
+    max_tokens_per_request: int = 8_000
     ignore: list[str] = Field(
         default_factory=lambda: ["**/*.lock", "**/generated/**", "**/*.min.*"]
     )
