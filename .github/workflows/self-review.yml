@@ -1,11 +1,9 @@
 name: Self Review (dogfood)
 
-# The bot reviews its own PRs. Manual-only until the pipeline is wired
-# (weekend 2) — then switch `on:` to:
-#
-#   pull_request:
-#     types: [opened, synchronize, reopened, ready_for_review]
+# The bot reviews its own PRs — dogfood data since weekend 1.
 on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
 concurrency:

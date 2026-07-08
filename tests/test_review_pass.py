@@ -61,7 +61,23 @@ def _limiter(rpd: int = 100) -> RateLimiter:
     return RateLimiter(rpm=1000, rpd=rpd, clock=lambda: 0.0, sleep=lambda s: None)
 
 
+class AuthFailProvider:
+    def generate(self, **kwargs):  # noqa: ANN003
+        from reviewbot.llm.provider import ProviderAuthError
+
+        raise ProviderAuthError("bad key")
+
+
 class TestReviewPass:
+    def test_auth_error_aborts_run_not_swallowed(self):
+        import pytest
+
+        from reviewbot.llm.provider import ProviderAuthError
+
+        chunks = parse_patch("a.py", PATCH)
+        with pytest.raises(ProviderAuthError):
+            review(AuthFailProvider(), _limiter(), "fake-model", chunks)
+
     def test_pairs_findings_with_chunks_and_owns_path(self):
         chunks = parse_patch("strategies/momentum.py", PATCH)
         outcome = review(FakeProvider(), _limiter(), "fake-model", chunks)
