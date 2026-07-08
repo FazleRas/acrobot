@@ -2,10 +2,10 @@
 
 from typing import Any
 
-from reviewbot.diff.chunker import ReviewUnit
-from reviewbot.github.client import GitHubClient
-from reviewbot.pipeline.fingerprint import fingerprint, marker
-from reviewbot.schemas import Finding
+from acrobot.diff.chunker import ReviewUnit
+from acrobot.github.client import GitHubClient
+from acrobot.pipeline.fingerprint import fingerprint, marker
+from acrobot.schemas import Finding
 
 
 def build_comments(

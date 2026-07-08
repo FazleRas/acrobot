@@ -1,4 +1,4 @@
-"""Bot configuration, loaded from `.github/reviewbot.yml` in the target repo.
+"""Bot configuration, loaded from `.github/acrobot.yml` in the target repo.
 
 Missing file or missing keys fall back to defaults, so consumers can adopt the
 bot with zero config and tune later.
@@ -9,7 +9,7 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, Field
 
-from reviewbot.schemas import Severity
+from acrobot.schemas import Severity
 
 
 class ModelsConfig(BaseModel):

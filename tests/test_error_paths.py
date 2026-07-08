@@ -5,9 +5,9 @@ import json
 import pytest
 from google.genai import errors as genai_errors
 
-import reviewbot.__main__ as entry
-from reviewbot.llm.gemini_provider import GeminiProvider
-from reviewbot.llm.provider import ProviderAuthError, ProviderError
+import acrobot.__main__ as entry
+from acrobot.llm.gemini_provider import GeminiProvider
+from acrobot.llm.provider import ProviderAuthError, ProviderError
 
 PATCH = (
     "@@ -1,2 +1,3 @@\n"
@@ -76,7 +76,7 @@ class TestGeminiErrorMapping:
         ],
     )
     def test_auth_failures_raise_provider_auth_error(self, exc):
-        from reviewbot.schemas import FindingList
+        from acrobot.schemas import FindingList
 
         provider = _provider_raising(exc)
         with pytest.raises(ProviderAuthError):
@@ -91,7 +91,7 @@ class TestGeminiErrorMapping:
         ],
     )
     def test_other_api_errors_raise_provider_error_not_auth(self, exc):
-        from reviewbot.schemas import FindingList
+        from acrobot.schemas import FindingList
 
         provider = _provider_raising(exc)
         with pytest.raises(ProviderError):

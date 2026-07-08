@@ -1,5 +1,5 @@
 [project]
-name = "reviewbot"
+name = "acrobot"
 version = "0.1.0"
 description = "AI code review bot: GitHub Action that reviews PR diffs with an LLM and posts inline comments"
 readme = "README.md"
@@ -24,7 +24,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/reviewbot"]
+packages = ["src/acrobot"]
 
 [tool.ruff]
 line-length = 100
@@ -36,7 +36,7 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.mypy]
 python_version = "3.12"
 mypy_path = "src"
-packages = ["reviewbot"]
+packages = ["acrobot"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

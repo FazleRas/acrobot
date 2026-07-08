@@ -17,7 +17,7 @@ exactly the resource being conserved — so we overestimate locally instead
 from dataclasses import dataclass
 from functools import cached_property
 
-from reviewbot.diff.parser import Chunk
+from acrobot.diff.parser import Chunk
 
 
 def estimate_tokens(text: str) -> int:

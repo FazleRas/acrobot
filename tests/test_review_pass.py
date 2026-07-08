@@ -2,14 +2,14 @@
 
 from pydantic import BaseModel
 
-from reviewbot.diff.chunker import build_units
-from reviewbot.diff.parser import parse_patch
-from reviewbot.github.reviews import build_comments
-from reviewbot.llm.provider import ProviderResponse, Usage
-from reviewbot.pipeline.fingerprint import extract_fingerprints
-from reviewbot.pipeline.review import review
-from reviewbot.ratelimit import RateLimiter
-from reviewbot.schemas import Finding, FindingList
+from acrobot.diff.chunker import build_units
+from acrobot.diff.parser import parse_patch
+from acrobot.github.reviews import build_comments
+from acrobot.llm.provider import ProviderResponse, Usage
+from acrobot.pipeline.fingerprint import extract_fingerprints
+from acrobot.pipeline.review import review
+from acrobot.ratelimit import RateLimiter
+from acrobot.schemas import Finding, FindingList
 
 PATCH = (
     "@@ -1,4 +1,5 @@\n"
@@ -64,7 +64,7 @@ def _limiter(rpd: int = 100) -> RateLimiter:
 
 class AuthFailProvider:
     def generate(self, **kwargs):  # noqa: ANN003
-        from reviewbot.llm.provider import ProviderAuthError
+        from acrobot.llm.provider import ProviderAuthError
 
         raise ProviderAuthError("bad key")
 
@@ -73,7 +73,7 @@ class TestReviewPass:
     def test_auth_error_aborts_run_not_swallowed(self):
         import pytest
 
-        from reviewbot.llm.provider import ProviderAuthError
+        from acrobot.llm.provider import ProviderAuthError
 
         units = build_units(parse_patch("a.py", PATCH))
         with pytest.raises(ProviderAuthError):

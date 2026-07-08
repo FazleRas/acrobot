@@ -9,20 +9,20 @@ import os
 import sys
 from pathlib import Path
 
-from reviewbot.config import BotConfig
-from reviewbot.diff.chunker import build_units
-from reviewbot.diff.filters import should_review
-from reviewbot.diff.parser import Chunk, parse_patch
-from reviewbot.github.client import GitHubClient
-from reviewbot.github.pr import fetch_changed_files, fetch_existing_comment_bodies
-from reviewbot.github.reviews import build_comments, post_review
-from reviewbot.llm.gemini_provider import GeminiProvider
-from reviewbot.llm.provider import ProviderAuthError
-from reviewbot.pipeline.fingerprint import extract_fingerprints
-from reviewbot.pipeline.postprocess import postprocess
-from reviewbot.pipeline.review import review
-from reviewbot.ratelimit import RateLimiter
-from reviewbot.telemetry import RunTelemetry
+from acrobot.config import BotConfig
+from acrobot.diff.chunker import build_units
+from acrobot.diff.filters import should_review
+from acrobot.diff.parser import Chunk, parse_patch
+from acrobot.github.client import GitHubClient
+from acrobot.github.pr import fetch_changed_files, fetch_existing_comment_bodies
+from acrobot.github.reviews import build_comments, post_review
+from acrobot.llm.gemini_provider import GeminiProvider
+from acrobot.llm.provider import ProviderAuthError
+from acrobot.pipeline.fingerprint import extract_fingerprints
+from acrobot.pipeline.postprocess import postprocess
+from acrobot.pipeline.review import review
+from acrobot.ratelimit import RateLimiter
+from acrobot.telemetry import RunTelemetry
 
 
 def main() -> int:
@@ -30,19 +30,19 @@ def main() -> int:
     repo = os.environ.get("GITHUB_REPOSITORY")
     token = os.environ.get("GITHUB_TOKEN")
     if not (event_path and repo and token):
-        print("reviewbot: needs GITHUB_EVENT_PATH, GITHUB_REPOSITORY, GITHUB_TOKEN (Actions env)")
+        print("acrobot: needs GITHUB_EVENT_PATH, GITHUB_REPOSITORY, GITHUB_TOKEN (Actions env)")
         return 1
 
     event = json.loads(Path(event_path).read_text())
     pr = event.get("pull_request")
     if pr is None:
-        print("reviewbot: not a pull_request event, nothing to do")
+        print("acrobot: not a pull_request event, nothing to do")
         return 0
     if pr.get("draft"):
-        print("reviewbot: draft PR, skipping")
+        print("acrobot: draft PR, skipping")
         return 0
 
-    config = BotConfig.load(Path(os.environ.get("REVIEWBOT_CONFIG", ".github/reviewbot.yml")))
+    config = BotConfig.load(Path(os.environ.get("ACROBOT_CONFIG", ".github/acrobot.yml")))
     gh = GitHubClient(token=token, repo=repo)
     provider = GeminiProvider()
     limiter = RateLimiter(rpm=config.rate_limits.rpm, rpd=config.rate_limits.rpd)
@@ -59,7 +59,7 @@ def main() -> int:
             filtered += 1
     units = build_units(chunks, config.max_tokens_per_request)
     print(
-        f"reviewbot: {len(changed)} files -> {len(chunks)} hunks -> {len(units)} units "
+        f"acrobot: {len(changed)} files -> {len(chunks)} hunks -> {len(units)} units "
         f"({filtered} files filtered)"
     )
     if not units:
@@ -68,7 +68,7 @@ def main() -> int:
     try:
         outcome = review(provider, limiter, config.models.review, units, telemetry)
     except ProviderAuthError as exc:
-        print(f"reviewbot: {exc}", file=sys.stderr)
+        print(f"acrobot: {exc}", file=sys.stderr)
         return 1
     kept = postprocess(outcome.findings, config)
     suppressed = len(outcome.findings) - len(kept)
@@ -89,7 +89,7 @@ def main() -> int:
     post_review(gh, number, pr["head"]["sha"], "\n\n".join(summary), comments)
 
     telemetry.write_step_summary()
-    print(f"reviewbot: posted {len(comments)} comment(s)")
+    print(f"acrobot: posted {len(comments)} comment(s)")
     return 0
 
 

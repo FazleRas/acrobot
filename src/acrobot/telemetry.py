@@ -8,7 +8,7 @@ GITHUB_STEP_SUMMARY as a markdown table at the end of each run.
 import os
 from dataclasses import dataclass, field
 
-from reviewbot.llm.provider import Usage
+from acrobot.llm.provider import Usage
 
 # (input, output) USD per 1M tokens. Static snapshot (2026-07) for the
 # "what this run would have cost" column — refresh when quoting numbers.
@@ -54,7 +54,7 @@ class RunTelemetry:
         if not path or not self.stages:
             return
         lines = [
-            "## reviewbot run",
+            "## acrobot run",
             "",
             "| stage | requests | in tok | out tok | think tok | s | actual | hypothetical |",
             "|---|---|---|---|---|---|---|---|",

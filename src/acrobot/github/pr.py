@@ -1,6 +1,6 @@
 """Fetch PR metadata, changed files, and existing bot comments."""
 
-from reviewbot.github.client import GitHubClient
+from acrobot.github.client import GitHubClient
 
 
 def fetch_changed_files(gh: GitHubClient, pr_number: int) -> list[dict]:

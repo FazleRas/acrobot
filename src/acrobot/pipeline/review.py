@@ -10,11 +10,11 @@ import time
 from dataclasses import dataclass, field
 from importlib.resources import files
 
-from reviewbot.diff.chunker import ReviewUnit
-from reviewbot.llm.provider import Provider, ProviderError
-from reviewbot.ratelimit import DailyBudgetExhausted, RateLimiter
-from reviewbot.schemas import Finding, FindingList
-from reviewbot.telemetry import RunTelemetry
+from acrobot.diff.chunker import ReviewUnit
+from acrobot.llm.provider import Provider, ProviderError
+from acrobot.ratelimit import DailyBudgetExhausted, RateLimiter
+from acrobot.schemas import Finding, FindingList
+from acrobot.telemetry import RunTelemetry
 
 
 @dataclass
@@ -26,7 +26,7 @@ class ReviewOutcome:
 
 
 def _system_prompt() -> str:
-    return files("reviewbot.llm.prompts").joinpath("review_system.md").read_text()
+    return files("acrobot.llm.prompts").joinpath("review_system.md").read_text()
 
 
 def _user_prompt(unit: ReviewUnit) -> str:
@@ -67,7 +67,7 @@ def review(
                 reasoning=True,
             )
         except ProviderError as exc:
-            print(f"reviewbot: provider error on {unit.path}: {exc}")
+            print(f"acrobot: provider error on {unit.path}: {exc}")
             outcome.units_errored += 1
             continue
         if telemetry is not None:

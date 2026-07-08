@@ -5,9 +5,9 @@ GitHub-shaped state); this stage is pure judgment: drop what the consumer said
 they don't want to see, then keep the most important findings under the cap.
 """
 
-from reviewbot.config import BotConfig
-from reviewbot.diff.chunker import ReviewUnit
-from reviewbot.schemas import SEVERITY_ORDER, Finding
+from acrobot.config import BotConfig
+from acrobot.diff.chunker import ReviewUnit
+from acrobot.schemas import SEVERITY_ORDER, Finding
 
 
 def postprocess(

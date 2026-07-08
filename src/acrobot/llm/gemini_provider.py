@@ -5,7 +5,7 @@ from google.genai import errors as genai_errors
 from google.genai import types
 from pydantic import BaseModel
 
-from reviewbot.llm.provider import ProviderAuthError, ProviderError, ProviderResponse, Usage
+from acrobot.llm.provider import ProviderAuthError, ProviderError, ProviderResponse, Usage
 
 
 class GeminiProvider:

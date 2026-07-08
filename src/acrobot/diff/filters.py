@@ -2,7 +2,7 @@
 
 import fnmatch
 
-from reviewbot.config import BotConfig
+from acrobot.config import BotConfig
 
 # Filenames that are machine-written regardless of config globs.
 _GENERATED_NAMES = {

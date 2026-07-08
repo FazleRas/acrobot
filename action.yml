@@ -1,4 +1,4 @@
-name: "AI Review Bot"
+name: "ACROBOT"
 description: "Reviews pull request diffs with an LLM and posts inline comments"
 branding:
   icon: eye
@@ -13,9 +13,9 @@ inputs:
     required: false
     default: ${{ github.token }}
   config_path:
-    description: "Path to reviewbot.yml in the target repo"
+    description: "Path to acrobot.yml in the target repo"
     required: false
-    default: ".github/reviewbot.yml"
+    default: ".github/acrobot.yml"
 
 runs:
   using: composite
@@ -24,8 +24,8 @@ runs:
       uses: astral-sh/setup-uv@v5
     - name: Run review
       shell: bash
-      run: uv run --project "${{ github.action_path }}" python -m reviewbot
+      run: uv run --project "${{ github.action_path }}" python -m acrobot
       env:
         GEMINI_API_KEY: ${{ inputs.gemini_api_key }}
         GITHUB_TOKEN: ${{ inputs.github_token }}
-        REVIEWBOT_CONFIG: ${{ inputs.config_path }}
+        ACROBOT_CONFIG: ${{ inputs.config_path }}

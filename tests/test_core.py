@@ -2,11 +2,11 @@
 
 import pytest
 
-from reviewbot.config import BotConfig
-from reviewbot.diff.filters import should_review
-from reviewbot.diff.parser import parse_patch
-from reviewbot.pipeline.fingerprint import extract_fingerprints, fingerprint, marker
-from reviewbot.ratelimit import DailyBudgetExhausted, RateLimiter
+from acrobot.config import BotConfig
+from acrobot.diff.filters import should_review
+from acrobot.diff.parser import parse_patch
+from acrobot.pipeline.fingerprint import extract_fingerprints, fingerprint, marker
+from acrobot.ratelimit import DailyBudgetExhausted, RateLimiter
 
 SAMPLE_PATCH = (
     "@@ -1,4 +1,5 @@\n"

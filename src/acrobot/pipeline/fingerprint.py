@@ -10,7 +10,7 @@ import hashlib
 import re
 from collections.abc import Iterable
 
-_MARKER_RE = re.compile(r"<!-- reviewbot:fp:([0-9a-f]{16}) -->")
+_MARKER_RE = re.compile(r"<!-- acrobot:fp:([0-9a-f]{16}) -->")
 
 
 def fingerprint(path: str, flagged_lines: str, category: str) -> str:
@@ -20,7 +20,7 @@ def fingerprint(path: str, flagged_lines: str, category: str) -> str:
 
 
 def marker(fp: str) -> str:
-    return f"<!-- reviewbot:fp:{fp} -->"
+    return f"<!-- acrobot:fp:{fp} -->"
 
 
 def extract_fingerprints(comment_bodies: Iterable[str]) -> set[str]:

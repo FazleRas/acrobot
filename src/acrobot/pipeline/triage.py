@@ -1,9 +1,9 @@
 """Cheap-model pass: score each unit for review-worthiness before the
 expensive model spends rate-limit budget on it."""
 
-from reviewbot.diff.chunker import ReviewUnit
-from reviewbot.llm.provider import Provider
-from reviewbot.ratelimit import RateLimiter
+from acrobot.diff.chunker import ReviewUnit
+from acrobot.llm.provider import Provider
+from acrobot.ratelimit import RateLimiter
 
 
 def triage(provider: Provider, limiter: RateLimiter, model: str,

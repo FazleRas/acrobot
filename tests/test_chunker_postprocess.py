@@ -1,10 +1,10 @@
 """Chunker grouping/budgeting and postprocess noise controls."""
 
-from reviewbot.config import BotConfig
-from reviewbot.diff.chunker import ReviewUnit, build_units, estimate_tokens
-from reviewbot.diff.parser import Chunk, parse_patch
-from reviewbot.pipeline.postprocess import postprocess
-from reviewbot.schemas import Finding
+from acrobot.config import BotConfig
+from acrobot.diff.chunker import ReviewUnit, build_units, estimate_tokens
+from acrobot.diff.parser import Chunk, parse_patch
+from acrobot.pipeline.postprocess import postprocess
+from acrobot.schemas import Finding
 
 PATCH_TWO_HUNKS = (
     "@@ -1,3 +1,4 @@\n"
