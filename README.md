@@ -109,7 +109,7 @@ Optional tuning via `.github/acrobot.yml` (every key has a default):
 
 ```yaml
 models:
-  triage: gemini-2.5-flash-lite
+  triage: gemini-3.1-flash-lite   # or gemini-flash-lite-latest to float
   review: gemini-2.5-flash
 rate_limits:      # per-model pools; defaults sit just under the observed free-tier
   review:         # caps. Daily pools are shared across all runs on one API key.

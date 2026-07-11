@@ -13,7 +13,11 @@ from acrobot.schemas import Severity
 
 
 class ModelsConfig(BaseModel):
-    triage: str = "gemini-2.5-flash-lite"
+    # Google retires models for new API keys (gemini-2.5-flash-lite 404s on
+    # keys created after mid-2026, while still appearing in the models list).
+    # If triage starts failing open with 404s, check the list endpoint for the
+    # current lite tier — or set `gemini-flash-lite-latest` to float with it.
+    triage: str = "gemini-3.1-flash-lite"
     review: str = "gemini-2.5-flash"
 
 
