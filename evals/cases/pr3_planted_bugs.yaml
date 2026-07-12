@@ -1,0 +1,26 @@
+description: >
+  The original planted-bug demo PR: two deliberate bugs (off-by-one window,
+  division by zero on peak) plus two real edge cases the bot found unprompted
+  on day one (window<=0, empty equity list). A strong reviewer catches all
+  four; the two planted ones are the must-haves.
+source: acrobot PR #3
+fixture: pr3_rolling_stats.json
+expected_findings:
+  - path: examples/rolling_stats.py
+    line: 7
+    line_tolerance: 2
+    category: bug
+    must_mention: ["off by one", "off-by-one", "last", "window + 1"]
+  - path: examples/rolling_stats.py
+    line: 19
+    line_tolerance: 2
+    category: bug
+    must_mention: ["zero", "peak"]
+  - path: examples/rolling_stats.py
+    line: 9
+    line_tolerance: 3
+    must_mention: ["window", "zero", "negative"]
+  - path: examples/rolling_stats.py
+    line: 15
+    line_tolerance: 3
+    must_mention: ["empty", "IndexError"]

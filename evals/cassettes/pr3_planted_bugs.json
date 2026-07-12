@@ -1,0 +1,32 @@
+{
+  "270c26bfa7c65c37b0f6481b": {
+    "model": "gemini-2.5-flash",
+    "parsed": {
+      "findings": [
+        {
+          "category": "bug",
+          "comment": "The `moving_average` loop range is incorrect. For a window of size `w`, `len(values) - w` means the loop misses the last possible window. The loop should run `len(values) - window + 1` times to include the average for the window ending at the last element. Also, `window` should be greater than 0; otherwise, a `ZeroDivisionError` will occur. Consider adding an explicit check for `window <= 0`.",
+          "confidence": 0.9,
+          "end_line": 7,
+          "line": 7,
+          "path": "examples/rolling_stats.py",
+          "severity": "critical"
+        },
+        {
+          "category": "bug",
+          "comment": "The `max_drawdown` function will raise an `IndexError` if the `equity` list is empty, as `equity[0]` is accessed. It should return `0.0` for an empty list. Furthermore, line 19 will cause a `ZeroDivisionError` if `peak` is `0`. Add a check like `if peak == 0: drawdown = 0.0` or `if peak == 0: raise ValueError(\"Equity peak cannot be zero\")`.",
+          "confidence": 0.9,
+          "end_line": 15,
+          "line": 15,
+          "path": "examples/rolling_stats.py",
+          "severity": "critical"
+        }
+      ]
+    },
+    "usage": {
+      "input_tokens": 817,
+      "output_tokens": 361,
+      "thinking_tokens": 2657
+    }
+  }
+}

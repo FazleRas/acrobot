@@ -1,0 +1,9 @@
+description: >
+  Documentation-only diff (the README architecture rewrite). There is nothing
+  reviewable here — any finding on this file is a confirmed false positive.
+  This case measures the noise floor.
+source: acrobot PR #5
+fixture: pr5_readme_rewrite.json
+expected_findings: []
+clean_files:
+  - README.md

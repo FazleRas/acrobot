@@ -1,0 +1,13 @@
+{
+  "0d7d1c875917fac15b9ca048": {
+    "model": "gemini-2.5-flash",
+    "parsed": {
+      "findings": []
+    },
+    "usage": {
+      "input_tokens": 5740,
+      "output_tokens": 9,
+      "thinking_tokens": 1325
+    }
+  }
+}
