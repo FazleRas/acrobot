@@ -13,17 +13,27 @@ from acrobot.schemas import Severity
 
 
 class ModelsConfig(BaseModel):
-    triage: str = "gemini-2.5-flash-lite"
+    # Google retires models for new API keys (gemini-2.5-flash-lite 404s on
+    # keys created after mid-2026, while still appearing in the models list).
+    # If triage starts failing open with 404s, check the list endpoint for the
+    # current lite tier — or set `gemini-flash-lite-latest` to float with it.
+    triage: str = "gemini-3.1-flash-lite"
     review: str = "gemini-2.5-flash"
 
 
-class RateLimitConfig(BaseModel):
-    """Client-side throttle for the review model's free-tier quota.
+class ModelRateLimit(BaseModel):
+    rpm: int
+    rpd: int
 
-    Defaults sit just under the observed gemini-2.5-flash free-tier caps
-    (5 requests/min, 20/day) to leave headroom. Two caveats these numbers
-    can't fix, only soften:
-      * The daily pool is shared across every workflow run and every repo on
+
+class RateLimitConfig(BaseModel):
+    """Client-side throttles, one per model tier — Gemini free-tier quotas are
+    per-model pools, so triage spend never touches the review budget.
+
+    Defaults sit just under the observed free-tier caps (flash: 5/min, 20/day;
+    flash-lite is far larger). Two caveats these numbers can't fix, only
+    soften:
+      * Each daily pool is shared across every workflow run and every repo on
         the same API key — this limiter only meters within a single run, so
         the real ceiling is lower than `rpd` on a busy day.
       * Google adjusts free-tier limits over time; treat these as config, not
@@ -32,8 +42,8 @@ class RateLimitConfig(BaseModel):
     conservative defaults plus server backoff cover the gap.
     """
 
-    rpm: int = 4
-    rpd: int = 18
+    review: ModelRateLimit = Field(default_factory=lambda: ModelRateLimit(rpm=4, rpd=18))
+    triage: ModelRateLimit = Field(default_factory=lambda: ModelRateLimit(rpm=12, rpd=800))
 
 
 class BotConfig(BaseModel):

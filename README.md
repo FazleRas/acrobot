@@ -25,8 +25,10 @@ flowchart TD
     A["PR opened / updated<br/><code>action.yml</code>"] --> B["Fetch changed files<br/><code>github/pr.py · client.py</code>"]
     B --> C["Filter noise<br/><code>diff/filters.py · config.py</code>"]
     C --> D["Parse into anchored hunks<br/><code>diff/parser.py</code>"]
-    D --> E["Rate limit gate<br/><code>ratelimit.py</code>"]
-    E --> F["LLM review per hunk<br/><code>pipeline/review.py · llm/gemini_provider.py</code>"]
+    D --> D2["Group into per-file units<br/><code>diff/chunker.py</code>"]
+    D2 --> D3["Triage gate — cheap model, fails open<br/><code>pipeline/triage.py</code>"]
+    D3 --> E["Rate limit gates, one per model pool<br/><code>ratelimit.py</code>"]
+    E --> F["LLM review per unit<br/><code>pipeline/review.py · llm/gemini_provider.py</code>"]
     F --> G["Validate · dedupe · fingerprint<br/><code>github/reviews.py · pipeline/fingerprint.py</code>"]
     G --> H["Post one batched review<br/><code>github/client.py</code>"]
     H --> I["Telemetry step summary<br/><code>telemetry.py</code>"]
@@ -60,21 +62,21 @@ v2 roadmap: [docs/architecture.md](docs/architecture.md).
 | `src/acrobot/schemas.py` | `Finding` / `FindingList` / `TriageResult` — the enforced LLM output contract |
 | `src/acrobot/diff/parser.py` | GitHub `patch` strings → hunks with a line map (new-file line № → text); wraps patches in the synthetic headers unidiff requires |
 | `src/acrobot/diff/filters.py` | Skips removed/binary/oversized files, lockfiles, generated code, ignore globs |
-| `src/acrobot/diff/chunker.py` | *(stub)* token budgeting and hunk grouping |
+| `src/acrobot/diff/chunker.py` | Groups same-file hunks into `ReviewUnit`s under a token budget — one unit = one request = one file |
 | `src/acrobot/ratelimit.py` | Two-clock limiter: RPM window blocks, RPD budget raises `DailyBudgetExhausted` for graceful partial reviews; injectable clock, tested without sleeping |
 | `src/acrobot/llm/provider.py` | Vendor-agnostic `Provider` protocol; `ProviderError` (skip chunk) vs `ProviderAuthError` (abort run — deliberately not a subclass, so a dead key can't hide in a green check) |
 | `src/acrobot/llm/gemini_provider.py` | The only file that knows Gemini exists: `reasoning=True` → `thinking_budget=-1`, response-schema enforcement, error mapping (incl. Google's 400-not-401 invalid-key quirk) |
 | `src/acrobot/llm/prompts/` | The reviewer's rulebook + triage prompt; versioned, eval-tested (weekend 3) |
 | `src/acrobot/pipeline/review.py` | Review loop: per-hunk prompt with a numbered new-file listing (the defense against hallucinated line numbers); findings stay paired with their source chunk; the model's self-reported path is overridden |
 | `src/acrobot/pipeline/fingerprint.py` | Content-based comment fingerprints in hidden HTML markers — idempotent re-runs that survive force-pushes and shifted diffs |
-| `src/acrobot/pipeline/triage.py` | *(stub)* cheap-model pre-filter so the review model only sees chunks that matter |
-| `src/acrobot/pipeline/postprocess.py` | *(stub)* confidence threshold, severity floor, comment cap |
+| `src/acrobot/pipeline/triage.py` | Cheap-model gate (flash-lite, own quota pool) — scores units 0–10, only survivors reach the review model; every failure fails open |
+| `src/acrobot/pipeline/postprocess.py` | Confidence threshold, severity floor, comment cap (keeps most-severe, not first-seen) |
 | `src/acrobot/github/client.py` | Hand-rolled httpx GitHub client: auth, Link-header pagination, retry-after-aware backoff |
 | `src/acrobot/github/pr.py` | Fetch changed files + existing comment bodies (idempotency input) |
 | `src/acrobot/github/reviews.py` | `build_comments` (anchor validation, dedupe, markers) + `post_review` (one batched API call) |
 | `src/acrobot/telemetry.py` | Per-stage usage → markdown table in `GITHUB_STEP_SUMMARY`, actual vs hypothetical cost |
 | `evals/` | Weekend-3 harness: labeled diff cases, recorded-response cassettes, precision/recall runner |
-| `tests/` | 24 tests: parsing, filters, fingerprints, rate limiter (fake clocks), fake-provider review loop, budget exhaustion, anchor validation, error paths |
+| `tests/` | 49 tests: parsing, filters, fingerprints, rate limiter (fake clocks), fake-provider review loop, triage fail-open semantics, budget exhaustion, anchor validation, error paths |
 
 ## Usage
 
@@ -107,11 +109,15 @@ Optional tuning via `.github/acrobot.yml` (every key has a default):
 
 ```yaml
 models:
-  triage: gemini-2.5-flash-lite
+  triage: gemini-3.1-flash-lite   # or gemini-flash-lite-latest to float
   review: gemini-2.5-flash
-rate_limits:      # just under the gemini-2.5-flash free-tier caps (5/min, 20/day);
-  rpm: 4          # the daily pool is shared across all runs on one API key
-  rpd: 18
+rate_limits:      # per-model pools; defaults sit just under the observed free-tier
+  review:         # caps. Daily pools are shared across all runs on one API key.
+    rpm: 4
+    rpd: 18
+  triage:
+    rpm: 12
+    rpd: 800
 triage_threshold: 4
 confidence_threshold: 0.6
 max_comments: 10
@@ -129,9 +135,11 @@ ignore:
 - [x] Diff parsing, filters, provider protocol + Gemini adapter, rate limiter, fingerprints
 - [x] Review pass: structured findings, anchor validation, batched posting, partial-review degradation
 - [x] Dogfooding live on this repo and [AlphaLab](https://github.com/FazleRas/AlphaLab)
-- [ ] Chunker + postprocess: token budgeting, confidence/severity/cap enforcement
+- [x] Chunker + postprocess: token budgeting, confidence/severity/cap enforcement
+- [x] Quota-honest rate limiting: real free-tier caps, server-advised 429 retries, daily-limit → partial review
+- [x] Triage tier: cheap-model gate on a separate quota pool, fails open
 - [ ] Eval harness: labeled cases, cassette replay in CI, precision/recall/FP-rate reports
-- [ ] Triage tier + rate-limiter hardening + provider benchmark
+- [ ] Provider benchmark: Anthropic adapter behind the same interface, compared on the eval set
 - [ ] v2: repository context layer — AST-aware retrieval feeding the review pass
 
 ## Development

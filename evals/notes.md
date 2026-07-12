@@ -49,12 +49,27 @@ isolation but wrong given context the bot couldn't see.
   quota-hardening PR — which resolves the concern properly.
 - **Correct label:** valid concern, wrong fix.
 
+## 5. Claimed `ProviderAuthError` is swallowed by `except ProviderError` — BLIND
+- **Where:** PR #9 review, `pipeline/triage.py`
+- **Claimed (severity `critical`):** the generic `except ProviderError` block
+  catches `ProviderAuthError`, so dead keys fail open instead of aborting;
+  import it and catch it first.
+- **Why it's wrong:** `ProviderAuthError` is deliberately **not** a
+  `ProviderError` subclass — exactly so no generic handler can ever swallow
+  it. That fact lives in `llm/provider.py`, a file the reviewed unit doesn't
+  include. `test_auth_error_propagates_not_swallowed` proves the behavior.
+- **Correct label:** no finding. Cross-file blindness, instance #4 — and the
+  first one that would have prompted a *harmful* "fix" (reordering catches to
+  handle an exception that can't arrive) rather than just redundant work.
+
 ---
 
 ## Patterns
-- **3 of 4 are context-blindness, not reasoning errors.** The model is right
+- **4 of 5 are context-blindness, not reasoning errors.** The model is right
   about the code in front of it and wrong about the code it can't see. That is
-  the single strongest data point for the v2 roadmap.
+  the single strongest data point for the v2 roadmap. Case #5 escalates the
+  stakes: cross-file blindness can now generate confidently-wrong `critical`
+  findings about class hierarchies defined elsewhere.
 - **Severity mis-calibration:** everything tends to come back tagged higher
   than a human would rate it (validation nits posted as `critical`). Tuning
   target for the eval harness, not a code fix.

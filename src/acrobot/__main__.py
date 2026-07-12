@@ -1,7 +1,7 @@
 """Action entry point: read the pull_request event, run the pipeline, post one review.
 
-fetch → filter → parse → chunk into per-file units → review → postprocess →
-post. No triage tier yet (weekend 4) — every unit goes to the review model.
+fetch → filter → parse → chunk into per-file units → triage (cheap model,
+fails open) → review (reasoning model) → postprocess → post.
 """
 
 import json
@@ -21,6 +21,7 @@ from acrobot.llm.provider import ProviderAuthError
 from acrobot.pipeline.fingerprint import extract_fingerprints
 from acrobot.pipeline.postprocess import postprocess
 from acrobot.pipeline.review import review
+from acrobot.pipeline.triage import triage
 from acrobot.ratelimit import RateLimiter
 from acrobot.telemetry import RunTelemetry
 
@@ -45,7 +46,13 @@ def main() -> int:
     config = BotConfig.load(Path(os.environ.get("ACROBOT_CONFIG", ".github/acrobot.yml")))
     gh = GitHubClient(token=token, repo=repo)
     provider = GeminiProvider()
-    limiter = RateLimiter(rpm=config.rate_limits.rpm, rpd=config.rate_limits.rpd)
+    # One limiter per model tier — Gemini free-tier quotas are per-model pools.
+    review_limiter = RateLimiter(
+        rpm=config.rate_limits.review.rpm, rpd=config.rate_limits.review.rpd
+    )
+    triage_limiter = RateLimiter(
+        rpm=config.rate_limits.triage.rpm, rpd=config.rate_limits.triage.rpd
+    )
     telemetry = RunTelemetry()
 
     number = pr["number"]
@@ -66,7 +73,19 @@ def main() -> int:
         return 0
 
     try:
-        outcome = review(provider, limiter, config.models.review, units, telemetry)
+        gate = triage(
+            provider,
+            triage_limiter,
+            config.models.triage,
+            units,
+            config.triage_threshold,
+            telemetry,
+        )
+        print(
+            f"acrobot: triage kept {len(gate.kept)}/{len(units)} units "
+            f"({len(gate.skipped)} skipped, {gate.errored} failed open)"
+        )
+        outcome = review(provider, review_limiter, config.models.review, gate.kept, telemetry)
     except ProviderAuthError as exc:
         print(f"acrobot: {exc}", file=sys.stderr)
         return 1
@@ -78,6 +97,11 @@ def main() -> int:
     summary = [
         f"🤖 AI review: {len(comments)} finding(s) across {outcome.units_reviewed} unit(s)."
     ]
+    if gate.skipped:
+        summary.append(
+            f"{len(gate.skipped)} unit(s) scored below the triage threshold and were not "
+            f"sent to the review model."
+        )
     if suppressed:
         summary.append(
             f"{suppressed} finding(s) below the configured confidence/severity bar were suppressed."
