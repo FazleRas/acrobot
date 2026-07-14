@@ -75,7 +75,8 @@ v2 roadmap: [docs/architecture.md](docs/architecture.md).
 | `src/acrobot/github/pr.py` | Fetch changed files + existing comment bodies (idempotency input) |
 | `src/acrobot/github/reviews.py` | `build_comments` (anchor validation, dedupe, markers) + `post_review` (one batched API call) |
 | `src/acrobot/telemetry.py` | Per-stage usage → markdown table in `GITHUB_STEP_SUMMARY`, actual vs hypothetical cost |
-| `evals/` | Weekend-3 harness: labeled diff cases, recorded-response cassettes, precision/recall runner |
+| `evals/` | The measurement layer: labeled cases (`cases/*.yaml`) over real-PR fixtures, provider-boundary cassettes for deterministic replay, `runner.py` reporting recall/precision/FP-rate + cost; `notes.md` is the false-positive ledger |
+| `src/acrobot/evalkit/` | Harness machinery (case schema, greedy 1:1 matching, cassette record/replay) — unit-tested like everything else |
 | `tests/` | 49 tests: parsing, filters, fingerprints, rate limiter (fake clocks), fake-provider review loop, triage fail-open semantics, budget exhaustion, anchor validation, error paths |
 
 ## Usage
@@ -138,7 +139,7 @@ ignore:
 - [x] Chunker + postprocess: token budgeting, confidence/severity/cap enforcement
 - [x] Quota-honest rate limiting: real free-tier caps, server-advised 429 retries, daily-limit → partial review
 - [x] Triage tier: cheap-model gate on a separate quota pool, fails open
-- [ ] Eval harness: labeled cases, cassette replay in CI, precision/recall/FP-rate reports
+- [x] Eval harness: labeled cases from real PRs, cassette replay in CI, recall/precision/FP-rate reports
 - [ ] Provider benchmark: Anthropic adapter behind the same interface, compared on the eval set
 - [ ] v2: repository context layer — AST-aware retrieval feeding the review pass
 
@@ -150,5 +151,22 @@ uv run pytest
 uv run ruff check . && uv run mypy
 ```
 
+## Evals
+
+```sh
+uv run evals/runner.py           # cassette replay — deterministic, free, runs in CI
+uv run evals/runner.py --live    # real API calls; records/refreshes cassettes
+```
+
+Cases are labeled diffs from real PRs (expected findings with line tolerance +
+keyword match; files where any finding is a false positive). Cassettes record
+provider responses at the protocol boundary, so CI replays the whole pipeline
+for free — and fails loudly when a prompt change invalidates a recording,
+forcing a live re-record and a reviewed report before merge. Current baseline:
+**75% recall, 100% precision** on the seed set — and across recordings the
+same diff has scored 4/4, 2/4, and 3/4, so run-to-run variance is now a
+measured fact instead of an invisible one. Honest numbers over good numbers.
+
 Every PR here is reviewed by the bot itself (`self-review.yml`) — its false
-positives become eval cases, its fair points become issues.
+positives become eval cases (see [evals/notes.md](evals/notes.md)), its fair
+points become issues.

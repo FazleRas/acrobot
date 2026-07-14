@@ -1,0 +1,41 @@
+{
+  "989d6996518aeec5c52d0da3": {
+    "model": "gemini-2.5-flash",
+    "parsed": {
+      "findings": [
+        {
+          "category": "bug",
+          "comment": "The function `moving_average` will raise a `ZeroDivisionError` if `window` is passed as `0`. A window size of 0 is an invalid input for calculating a moving average and should either be prevented or handled explicitly (e.g., by raising a `ValueError`). Consider adding `if window <= 0: raise ValueError(\"window must be a positive integer\")` at the beginning of the function.",
+          "confidence": 1.0,
+          "end_line": 9,
+          "line": 7,
+          "path": "examples/rolling_stats.py",
+          "severity": "critical"
+        },
+        {
+          "category": "bug",
+          "comment": "The `max_drawdown` function will raise an `IndexError` if the input `equity` list is empty because it tries to access `equity[0]` to initialize `peak`. Add a check at the beginning: `if not equity: return 0.0` (or `raise ValueError(\"equity cannot be empty\")`) to handle this edge case gracefully.",
+          "confidence": 1.0,
+          "end_line": null,
+          "line": 15,
+          "path": "examples/rolling_stats.py",
+          "severity": "critical"
+        },
+        {
+          "category": "bug",
+          "comment": "The `max_drawdown` function can raise a `ZeroDivisionError` if `peak` becomes `0`. This can happen if `equity[0]` is `0` or if all values in `equity` are `0`. If `peak` is `0`, a 'fraction of the peak' is undefined. Consider handling `peak == 0` specifically, perhaps by returning `0.0` for drawdown or by clarifying assumptions about input `equity` values.",
+          "confidence": 1.0,
+          "end_line": null,
+          "line": 19,
+          "path": "examples/rolling_stats.py",
+          "severity": "critical"
+        }
+      ]
+    },
+    "usage": {
+      "input_tokens": 817,
+      "output_tokens": 460,
+      "thinking_tokens": 1448
+    }
+  }
+}

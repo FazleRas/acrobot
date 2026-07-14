@@ -22,5 +22,9 @@ jobs:
         run: uv run mypy
       - name: Tests
         run: uv run pytest -q
-      # Weekend 3: add `uv run python evals/runner.py --cassette` here so prompt
-      # changes are regression-tested against recorded responses on every PR.
+      # Deterministic cassette replay: free, no API key. Fails on a cassette
+      # miss, which means the model-facing prompt changed — re-record with
+      # `uv run evals/runner.py --live` and commit the refreshed cassettes
+      # and report alongside the prompt change.
+      - name: Eval regression
+        run: uv run evals/runner.py
