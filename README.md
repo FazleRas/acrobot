@@ -1,83 +1,67 @@
 # ACROBOT
 
-**A**I **C**ode **R**eview **O**rg **BOT** — a GitHub Action that reviews pull
-request diffs with an LLM and posts inline comments, engineered so that being
-wrong is cheap and being spammy is impossible.
+AI Code Review Org Bot: a GitHub Action that reviews pull request diffs with
+an LLM and posts inline comments.
 
-When a PR opens, the bot fetches the changed hunks via the GitHub API (it
-never checks out or executes the code it reviews), filters out machine noise,
-reviews each hunk with a reasoning model, validates every finding against the
-diff, and posts one batched review. Built around a hard constraint — the
-**Gemini free tier** — so the scarce resource is rate-limit budget, not
-dollars, which forced the parts that matter: client-side throttling with
-graceful degradation, structured outputs everywhere, and content-based
-idempotency.
+When a PR opens, the bot fetches the changed hunks through the GitHub API,
+drops machine-written files, reviews each remaining file with a reasoning
+model, checks every finding against the diff, and posts one batched review. It
+never checks out or executes the code it reviews.
 
-**Field notes, day one:** caught 2/2 deliberately planted bugs (off-by-one,
-div-by-zero) with exact counterexamples, found 2 real unplanned edge cases,
-flagged genuine test gaps on its own PRs — and produced 2 instructive false
-positives that seeded the eval dataset.
+It runs on the Gemini free tier, so the scarce resource is request quota
+rather than money. That constraint shaped the design: a cheap-model triage
+gate, client-side rate limiting that degrades instead of failing, and recorded
+provider responses so evals replay offline. On its first live runs it caught
+both planted bugs (an off-by-one and a division by zero) with counterexamples,
+found two unplanned edge cases, and produced two false positives that became
+the first eval cases.
 
 ## How a review happens
 
 ```mermaid
 flowchart TD
-    A["PR opened / updated<br/><code>action.yml</code>"] --> B["Fetch changed files<br/><code>github/pr.py · client.py</code>"]
-    B --> C["Filter noise<br/><code>diff/filters.py · config.py</code>"]
+    A["PR opened or updated<br/><code>action.yml</code>"] --> B["Fetch changed files<br/><code>github/pr.py, client.py</code>"]
+    B --> C["Filter noise<br/><code>diff/filters.py, config.py</code>"]
     C --> D["Parse into anchored hunks<br/><code>diff/parser.py</code>"]
     D --> D2["Group into per-file units<br/><code>diff/chunker.py</code>"]
-    D2 --> D3["Triage gate — cheap model, fails open<br/><code>pipeline/triage.py</code>"]
+    D2 --> D3["Triage gate, cheap model, fails open<br/><code>pipeline/triage.py</code>"]
     D3 --> E["Rate limit gates, one per model pool<br/><code>ratelimit.py</code>"]
-    E --> F["LLM review per unit<br/><code>pipeline/review.py · llm/gemini_provider.py</code>"]
-    F --> G["Validate · dedupe · fingerprint<br/><code>github/reviews.py · pipeline/fingerprint.py</code>"]
+    E --> F["LLM review per unit<br/><code>pipeline/review.py, llm/gemini_provider.py</code>"]
+    F --> G["Validate, dedupe, fingerprint<br/><code>github/reviews.py, pipeline/fingerprint.py</code>"]
     G --> H["Post one batched review<br/><code>github/client.py</code>"]
     H --> I["Telemetry step summary<br/><code>telemetry.py</code>"]
 ```
 
-Three rules govern the design:
+Three rules shape the code:
 
-1. **The LLM is untrusted input.** It lives behind one provider interface
-   (`llm/provider.py`); its output is schema-validated JSON (`schemas.py`),
-   never regex-parsed prose; and every finding's line anchor is verified
-   against the parsed diff before posting. One hallucinated line number costs
-   one finding, not the run — GitHub rejects the entire review otherwise.
+1. **LLM output is untrusted input.** The model sits behind one provider
+   interface, returns schema-validated JSON rather than prose to be parsed,
+   and every finding's line anchor is checked against the parsed diff first.
+   GitHub rejects a review whole if one anchor is bad, so a hallucinated line
+   number costs one finding instead of the run.
 2. **Request budget is the scarce resource.** Files are filtered before any
-   model call; a two-clock rate limiter (RPM sliding window + RPD daily
-   budget) meters what's left; and when the daily budget dies mid-run, the bot
-   posts a partial review with a warning instead of failing CI red.
-3. **Every run measures itself.** Per-stage tokens, latency, and hypothetical
-   paid-tier cost land in the Actions step summary — $0 actual, economics
-   known anyway.
+   model call, and a two-clock limiter (RPM window plus RPD daily budget)
+   meters the rest. If the daily budget runs out mid-run, the bot posts a
+   partial review with a warning instead of failing CI.
+3. **Every run measures itself.** Per-stage tokens, latency, and the cost the
+   run would have incurred on the paid tier go to the Actions step summary.
 
-Full rationale, security policy (fork PRs, `pull_request_target`), and the
-v2 roadmap: [docs/architecture.md](docs/architecture.md).
-
-## Repo map
+## Layout
 
 | Path | What it does |
 |---|---|
-| `action.yml` | Composite Action consumers `uses:` — installs uv, runs `python -m acrobot` |
-| `src/acrobot/__main__.py` | Orchestrator: reads the PR event, wires all stages, owns exit codes |
-| `src/acrobot/config.py` | `BotConfig` — models, thresholds, rate caps, ignore globs; loaded from the target repo's `.github/acrobot.yml`, every key optional |
-| `src/acrobot/schemas.py` | `Finding` / `FindingList` / `TriageResult` — the enforced LLM output contract |
-| `src/acrobot/diff/parser.py` | GitHub `patch` strings → hunks with a line map (new-file line № → text); wraps patches in the synthetic headers unidiff requires |
-| `src/acrobot/diff/filters.py` | Skips removed/binary/oversized files, lockfiles, generated code, ignore globs |
-| `src/acrobot/diff/chunker.py` | Groups same-file hunks into `ReviewUnit`s under a token budget — one unit = one request = one file |
-| `src/acrobot/ratelimit.py` | Two-clock limiter: RPM window blocks, RPD budget raises `DailyBudgetExhausted` for graceful partial reviews; injectable clock, tested without sleeping |
-| `src/acrobot/llm/provider.py` | Vendor-agnostic `Provider` protocol; `ProviderError` (skip chunk) vs `ProviderAuthError` (abort run — deliberately not a subclass, so a dead key can't hide in a green check) |
-| `src/acrobot/llm/gemini_provider.py` | The only file that knows Gemini exists: `reasoning=True` → `thinking_budget=-1`, response-schema enforcement, error mapping (incl. Google's 400-not-401 invalid-key quirk) |
-| `src/acrobot/llm/prompts/` | The reviewer's rulebook + triage prompt; versioned, eval-tested (weekend 3) |
-| `src/acrobot/pipeline/review.py` | Review loop: per-hunk prompt with a numbered new-file listing (the defense against hallucinated line numbers); findings stay paired with their source chunk; the model's self-reported path is overridden |
-| `src/acrobot/pipeline/fingerprint.py` | Content-based comment fingerprints in hidden HTML markers — idempotent re-runs that survive force-pushes and shifted diffs |
-| `src/acrobot/pipeline/triage.py` | Cheap-model gate (flash-lite, own quota pool) — scores units 0–10, only survivors reach the review model; every failure fails open |
-| `src/acrobot/pipeline/postprocess.py` | Confidence threshold, severity floor, comment cap (keeps most-severe, not first-seen) |
-| `src/acrobot/github/client.py` | Hand-rolled httpx GitHub client: auth, Link-header pagination, retry-after-aware backoff |
-| `src/acrobot/github/pr.py` | Fetch changed files + existing comment bodies (idempotency input) |
-| `src/acrobot/github/reviews.py` | `build_comments` (anchor validation, dedupe, markers) + `post_review` (one batched API call) |
-| `src/acrobot/telemetry.py` | Per-stage usage → markdown table in `GITHUB_STEP_SUMMARY`, actual vs hypothetical cost |
-| `evals/` | The measurement layer: labeled cases (`cases/*.yaml`) over real-PR fixtures, provider-boundary cassettes for deterministic replay, `runner.py` reporting recall/precision/FP-rate + cost; `notes.md` is the false-positive ledger |
-| `src/acrobot/evalkit/` | Harness machinery (case schema, greedy 1:1 matching, cassette record/replay) — unit-tested like everything else |
-| `tests/` | 49 tests: parsing, filters, fingerprints, rate limiter (fake clocks), fake-provider review loop, triage fail-open semantics, budget exhaustion, anchor validation, error paths |
+| `action.yml`, `__main__.py` | Composite Action that consumers `uses:`, and the orchestrator behind it |
+| `config.py`, `schemas.py` | Config loaded from the target repo, and the enforced LLM output contract |
+| `diff/` | Patch strings to hunks with a line map, noise filters, per-file grouping under a token budget |
+| `llm/` | Vendor-agnostic `Provider` protocol, the Gemini adapter, and the versioned prompts. `ProviderAuthError` is deliberately not a `ProviderError` subclass, so no generic handler can swallow a dead key |
+| `pipeline/` | Triage gate, review loop, content fingerprints for idempotent re-runs, and postprocess thresholds |
+| `github/` | httpx client with pagination and backoff, anchor validation, one batched review call |
+| `ratelimit.py`, `telemetry.py` | Two-clock limiter with an injectable clock, and per-stage usage reporting |
+| `evalkit/`, `evals/` | Harness machinery, labeled cases over real-PR fixtures, and the false-positive ledger |
+| `tests/` | 63 tests, including fake clocks, a fake provider, fail-open behavior, and budget exhaustion |
+
+Design rationale, the fork-PR security policy, and the v2 roadmap are in
+[docs/architecture.md](docs/architecture.md).
 
 ## Usage
 
@@ -100,21 +84,26 @@ jobs:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4   # needed so the action can read .github/acrobot.yml
-      - uses: FazleRas/acrobot@v1.0.0
+      - uses: actions/checkout@v4   # so the action can read .github/acrobot.yml
+      - uses: FazleRas/acrobot@v1   # floating major, moves with patch releases
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
 ```
 
-Optional tuning via `.github/acrobot.yml` (every key has a default):
+Pin `@v1` to track patch releases, `@v1.0.0` for an exact version, or the full
+commit SHA (`FazleRas/acrobot@9d6b46a5b4e74d3c5fa4c3e3e088014be297398f`) if
+your team pins actions by digest. CI checks that every ref this README
+advertises still resolves.
+
+Tuning is optional. Every key in `.github/acrobot.yml` has a default:
 
 ```yaml
 models:
   triage: gemini-3.1-flash-lite   # or gemini-flash-lite-latest to float
   review: gemini-2.5-flash
-rate_limits:      # per-model pools; defaults sit just under the observed free-tier
-  review:         # caps. Daily pools are shared across all runs on one API key.
-    rpm: 4
+rate_limits:      # per-model pools; defaults sit just under the observed
+  review:         # free-tier caps. Daily pools are shared across all runs
+    rpm: 4        # on one API key.
     rpd: 18
   triage:
     rpm: 12
@@ -123,25 +112,28 @@ triage_threshold: 4
 confidence_threshold: 0.6
 max_comments: 10
 severity_floor: warning
-ignore:
-  - "**/*.lock"
-  - "**/generated/**"
+# Globs are gitignore-style. `ignore` replaces the built-in defaults
+# (**/*.lock, **/generated/**, **/*.min.*); `extend_ignore` appends to them,
+# following ruff's exclude and extend-exclude. Most configs want extend_ignore.
+extend_ignore:
+  - "docs/**"
+  - "/scripts"        # leading slash anchors to the repo root
 ```
 
 > **Free-tier caveat:** Google's free tier may use prompts for model
-> improvement — run this on public repos only unless you're on a paid tier.
+> improvement. Run this on public repos only unless you are on a paid tier.
 
 ## Status
 
-- [x] Diff parsing, filters, provider protocol + Gemini adapter, rate limiter, fingerprints
+- [x] Diff parsing, filters, provider protocol and Gemini adapter, rate limiter, fingerprints
 - [x] Review pass: structured findings, anchor validation, batched posting, partial-review degradation
-- [x] Dogfooding live on this repo and [AlphaLab](https://github.com/FazleRas/AlphaLab)
-- [x] Chunker + postprocess: token budgeting, confidence/severity/cap enforcement
-- [x] Quota-honest rate limiting: real free-tier caps, server-advised 429 retries, daily-limit → partial review
+- [x] Dogfooding on this repo and [AlphaLab](https://github.com/FazleRas/AlphaLab)
+- [x] Chunker and postprocess: token budgeting, confidence, severity, and cap enforcement
+- [x] Quota-honest rate limiting: real free-tier caps, server-advised 429 retries, partial review at the daily limit
 - [x] Triage tier: cheap-model gate on a separate quota pool, fails open
-- [x] Eval harness: labeled cases from real PRs, cassette replay in CI, recall/precision/FP-rate reports
+- [x] Eval harness: labeled cases from real PRs, cassette replay in CI, recall and precision reports
 - [ ] Provider benchmark: Anthropic adapter behind the same interface, compared on the eval set
-- [ ] v2: repository context layer — AST-aware retrieval feeding the review pass
+- [ ] v2: repository context layer, AST-aware retrieval feeding the review pass
 
 ## Development
 
@@ -154,19 +146,20 @@ uv run ruff check . && uv run mypy
 ## Evals
 
 ```sh
-uv run evals/runner.py           # cassette replay — deterministic, free, runs in CI
-uv run evals/runner.py --live    # real API calls; records/refreshes cassettes
+uv run evals/runner.py           # cassette replay: deterministic, free, runs in CI
+uv run evals/runner.py --live    # real API calls; records and refreshes cassettes
 ```
 
-Cases are labeled diffs from real PRs (expected findings with line tolerance +
-keyword match; files where any finding is a false positive). Cassettes record
-provider responses at the protocol boundary, so CI replays the whole pipeline
-for free — and fails loudly when a prompt change invalidates a recording,
-forcing a live re-record and a reviewed report before merge. Current baseline:
-**75% recall, 100% precision** on the seed set — and across recordings the
-same diff has scored 4/4, 2/4, and 3/4, so run-to-run variance is now a
-measured fact instead of an invisible one. Honest numbers over good numbers.
+Cases are labeled diffs from real PRs, with expected findings matched by line
+tolerance and keyword, plus clean diffs where any finding counts as a false
+positive. Cassettes record provider responses at the protocol boundary, so CI
+replays the whole pipeline for free and fails when a prompt change invalidates
+a recording, which forces a live re-record before merge.
 
-Every PR here is reviewed by the bot itself (`self-review.yml`) — its false
-positives become eval cases (see [evals/notes.md](evals/notes.md)), its fair
-points become issues.
+The seed set currently scores 75% recall and 100% precision. Across recordings
+the same diff has scored 4/4, 2/4, and 3/4, so run-to-run variance is measured
+rather than hidden.
+
+The bot reviews every PR in this repo through `self-review.yml`. Its false
+positives become eval cases, logged in [evals/notes.md](evals/notes.md), and
+its fair points become issues.

@@ -63,6 +63,27 @@ class TestFilters:
     def test_reviews_normal_source_change(self):
         assert should_review("src/app.py", "modified", SAMPLE_PATCH, BotConfig())
 
+    def test_ignore_replaces_defaults_extend_ignore_appends(self):
+        replaced = BotConfig(ignore=["docs/**"])
+        # Setting `ignore` drops the built-in defaults — documented, but sharp.
+        assert should_review("vendor/Gemfile.lock", "modified", "@@ -1 +1 @@", replaced)
+        assert not should_review("docs/index.md", "modified", "@@ -1 +1 @@", replaced)
+        extended = BotConfig(extend_ignore=["docs/**"])
+        assert not should_review("vendor/Gemfile.lock", "modified", "@@ -1 +1 @@", extended)
+        assert not should_review("docs/index.md", "modified", "@@ -1 +1 @@", extended)
+
+    def test_globs_use_gitignore_semantics(self):
+        config = BotConfig(extend_ignore=["/CHANGELOG.md", "snapshots"])
+        # A leading "/" anchors to the repo root only.
+        assert not should_review("CHANGELOG.md", "modified", "@@ -1 +1 @@", config)
+        assert should_review("docs/CHANGELOG.md", "modified", SAMPLE_PATCH, config)
+        # A bare name matches a directory at any depth, like .gitignore.
+        assert not should_review("tests/snapshots/case.json", "modified", "@@ -1 +1 @@", config)
+        # "*" stops at "/": an anchored top-level glob stays top-level.
+        top_level = BotConfig(extend_ignore=["/*.py"])
+        assert not should_review("setup.py", "modified", "@@ -1 +1 @@", top_level)
+        assert should_review("src/app.py", "modified", SAMPLE_PATCH, top_level)
+
 
 class TestRateLimiter:
     def test_rpd_exhaustion_raises(self):
