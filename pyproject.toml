@@ -10,6 +10,7 @@ dependencies = [
     "unidiff>=0.7.5",
     "pydantic>=2.7",
     "pyyaml>=6.0",
+    "pathspec>=0.12",
 ]
 
 [dependency-groups]

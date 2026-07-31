@@ -101,10 +101,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4   # needed so the action can read .github/acrobot.yml
-      - uses: FazleRas/acrobot@v1.0.0
+      - uses: FazleRas/acrobot@v1   # floating major — moves with patch releases
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
 ```
+
+Pin `@v1` to track patch releases, `@v1.0.0` for an exact version, or the
+full commit SHA (`FazleRas/acrobot@9d6b46a5b4e74d3c5fa4c3e3e088014be297398f`)
+if your team pins actions supply-chain style. CI verifies that every ref this
+README advertises actually resolves.
 
 Optional tuning via `.github/acrobot.yml` (every key has a default):
 
@@ -123,9 +128,12 @@ triage_threshold: 4
 confidence_threshold: 0.6
 max_comments: 10
 severity_floor: warning
-ignore:
-  - "**/*.lock"
-  - "**/generated/**"
+# Globs are gitignore-style. `ignore` REPLACES the built-in defaults
+# (**/*.lock, **/generated/**, **/*.min.*); `extend_ignore` appends to them —
+# modeled on ruff's exclude / extend-exclude. Most configs want extend_ignore.
+extend_ignore:
+  - "docs/**"
+  - "/scripts"        # leading slash anchors to the repo root
 ```
 
 > **Free-tier caveat:** Google's free tier may use prompts for model

@@ -28,3 +28,22 @@ jobs:
       # and report alongside the prompt change.
       - name: Eval regression
         run: uv run evals/runner.py
+
+  # A `uses:` ref in the README that doesn't resolve hard-fails every
+  # consumer's workflow at step one, so fail our build first.
+  readme-refs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history + tags, so SHA pins resolve too
+      - name: README action pins resolve
+        run: |
+          set -euo pipefail
+          refs=$(grep -oE 'FazleRas/acrobot@[A-Za-z0-9._-]+' README.md | cut -d@ -f2 | sort -u)
+          test -n "$refs"   # zero matches means the README lost its usage example
+          for ref in $refs; do
+            git rev-parse --verify --quiet "refs/tags/$ref" > /dev/null \
+              || git cat-file -e "$ref" 2> /dev/null \
+              || { echo "::error::README pins acrobot@$ref, which is neither a tag nor a commit"; exit 1; }
+          done

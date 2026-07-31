@@ -55,9 +55,13 @@ class BotConfig(BaseModel):
     severity_floor: Severity = "warning"
     max_patch_bytes: int = 100_000
     max_tokens_per_request: int = 8_000
+    # Ruff-style pair (exclude / extend-exclude): `ignore` REPLACES the
+    # defaults below, `extend_ignore` appends to whatever `ignore` holds.
+    # Both are gitignore-style globs — see diff/filters.py for semantics.
     ignore: list[str] = Field(
         default_factory=lambda: ["**/*.lock", "**/generated/**", "**/*.min.*"]
     )
+    extend_ignore: list[str] = Field(default_factory=list)
 
     @classmethod
     def load(cls, path: Path | None) -> "BotConfig":

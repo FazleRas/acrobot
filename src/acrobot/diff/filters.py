@@ -1,6 +1,8 @@
 """Decide which changed files are worth reviewing at all."""
 
-import fnmatch
+from functools import lru_cache
+
+import pathspec
 
 from acrobot.config import BotConfig
 
@@ -16,6 +18,11 @@ _GENERATED_NAMES = {
 }
 
 
+@lru_cache(maxsize=8)
+def _ignore_spec(patterns: tuple[str, ...]) -> pathspec.GitIgnoreSpec:
+    return pathspec.GitIgnoreSpec.from_lines(patterns)
+
+
 def should_review(filename: str, status: str, patch: str | None, config: BotConfig) -> bool:
     """`status` and `patch` come straight from GET /pulls/{n}/files items."""
     if status == "removed":
@@ -27,4 +34,9 @@ def should_review(filename: str, status: str, patch: str | None, config: BotConf
     basename = filename.rsplit("/", 1)[-1]
     if basename in _GENERATED_NAMES:
         return False
-    return not any(fnmatch.fnmatch(filename, glob) for glob in config.ignore)
+    # Gitignore semantics (pathspec.GitIgnoreSpec), not fnmatch: "*" stops at
+    # "/", bare names match at any depth, and a leading "/" anchors to the
+    # repo root. Under fnmatch, "*" crossed directories — "*.py" silently
+    # matched the entire tree.
+    spec = _ignore_spec((*config.ignore, *config.extend_ignore))
+    return not spec.match_file(filename)
