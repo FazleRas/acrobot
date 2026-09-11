@@ -58,7 +58,7 @@ Three rules shape the code:
 | `github/` | httpx client with pagination and backoff, anchor validation, one batched review call |
 | `ratelimit.py`, `telemetry.py` | Two-clock limiter with an injectable clock, and per-stage usage reporting |
 | `evalkit/`, `evals/` | Harness machinery, labeled cases over real-PR fixtures, and the false-positive ledger |
-| `tests/` | 63 tests, including fake clocks, a fake provider, fail-open behavior, and budget exhaustion |
+| `tests/` | 70 tests, including fake clocks, a fake provider, fail-open behavior, and budget exhaustion |
 
 Design rationale, the fork-PR security policy, and the v2 roadmap are in
 [docs/architecture.md](docs/architecture.md).

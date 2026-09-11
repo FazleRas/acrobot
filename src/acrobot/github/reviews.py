@@ -56,10 +56,17 @@ def post_review(
     commit_sha: str,
     summary: str,
     comments: list[dict[str, Any]],
+    *,
+    degraded: bool = False,
 ) -> None:
-    """POST one review with all inline comments batched. Posting nothing when
-    there are no comments is deliberate — silence is a valid review."""
-    if not comments:
+    """POST one review with all inline comments batched.
+
+    Posting nothing when there are no comments is deliberate — silence is a
+    valid review — *unless* the run was degraded (budget ran out, provider
+    errors skipped units). Then silence would be indistinguishable from a
+    clean pass, so the summary goes up on its own.
+    """
+    if not comments and not degraded:
         return
     gh.post(
         f"/pulls/{pr_number}/reviews",
