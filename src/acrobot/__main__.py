@@ -55,6 +55,23 @@ def main() -> int:
     )
     telemetry = RunTelemetry()
 
+    try:
+        return _run(pr, config, gh, provider, review_limiter, triage_limiter, telemetry)
+    finally:
+        # Always land the step summary — a failed post or a dead key is exactly
+        # the run whose usage numbers you want to see.
+        telemetry.write_step_summary()
+
+
+def _run(
+    pr: dict,
+    config: BotConfig,
+    gh: GitHubClient,
+    provider: GeminiProvider,
+    review_limiter: RateLimiter,
+    triage_limiter: RateLimiter,
+    telemetry: RunTelemetry,
+) -> int:
     number = pr["number"]
     changed = fetch_changed_files(gh, number)
     chunks: list[Chunk] = []
@@ -110,9 +127,11 @@ def main() -> int:
         summary.append("⚠️ Daily free-tier budget ran out mid-review — this is a partial review.")
     if outcome.units_errored:
         summary.append(f"{outcome.units_errored} unit(s) skipped due to provider errors.")
-    post_review(gh, number, pr["head"]["sha"], "\n\n".join(summary), comments)
+    degraded = outcome.budget_exhausted or outcome.units_errored > 0
+    post_review(
+        gh, number, pr["head"]["sha"], "\n\n".join(summary), comments, degraded=degraded
+    )
 
-    telemetry.write_step_summary()
     print(f"acrobot: posted {len(comments)} comment(s)")
     return 0
 

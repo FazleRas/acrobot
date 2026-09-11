@@ -131,3 +131,44 @@ class TestRateLimitMapping:
                 model="m", system="s", prompt="p", schema=FindingList
             )
         assert caught.value.retry_after == 30.0
+
+
+class TestMainTelemetry:
+    """The step summary must land even when the run fails after model calls."""
+
+    def test_step_summary_written_when_post_fails(self, monkeypatch, tmp_path):
+        from acrobot.llm.provider import ProviderResponse, Usage
+
+        class _Provider:
+            def generate(self, *, model, system, prompt, schema, reasoning=False):  # noqa: ANN001
+                return ProviderResponse(
+                    parsed=schema(findings=[]) if schema is FindingList else schema(score=10),
+                    usage=Usage(input_tokens=10, output_tokens=5),
+                    model=model,
+                )
+
+        def _boom(*args, **kwargs):  # noqa: ANN002, ANN003
+            raise RuntimeError("github down")
+
+        event = tmp_path / "event.json"
+        event.write_text(
+            json.dumps({"pull_request": {"number": 7, "draft": False, "head": {"sha": "abc"}}})
+        )
+        summary = tmp_path / "summary.md"
+        monkeypatch.setenv("GITHUB_EVENT_PATH", str(event))
+        monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+        monkeypatch.setattr(entry, "GeminiProvider", _Provider)
+        monkeypatch.setattr(
+            entry,
+            "fetch_changed_files",
+            lambda gh, n: [{"filename": "a.py", "status": "modified", "patch": PATCH}],
+        )
+        monkeypatch.setattr(entry, "fetch_existing_comment_bodies", lambda gh, n: [])
+        monkeypatch.setattr(entry, "post_review", _boom)
+
+        with pytest.raises(RuntimeError, match="github down"):
+            entry.main()
+        assert "## acrobot run" in summary.read_text()
+        assert "triage" in summary.read_text()
